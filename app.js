@@ -65,10 +65,11 @@ app.get("/like/:user/:postId", (req, res) => {
           function (error, results, fields) {
             if (error) {
               console.log(error);
-              res.status(500);
+              res.status(400);
             } else {
-              console.log(results);
-              res.json(results);
+              conn.query(`insert into Likes values(0,'${user}',${postId})`,function(error,results,fields){
+
+              })
             }
           }
         );
@@ -84,7 +85,6 @@ app.get("/unlike/:usId/:postId", (req, res) => {
     `select * from Posts where id = ${postId}`,
     function (error, results, fields) {
       post = results[0];
-
       if (error) {
         console.log(error);
         res.status(500);
@@ -99,8 +99,13 @@ app.get("/unlike/:usId/:postId", (req, res) => {
               console.log(error);
               res.status(500);
             } else {
-              console.log(results);
-              res.json(results);
+              conn.query(`delete from Likes where postId = ${postId}`,function(error,results,fields){
+                if(error){
+                  res.status(400)
+                }else{
+                  res.json(results);
+                }
+              })
             }
           }
         );
@@ -127,11 +132,18 @@ app.post("/new-messages/:id", (req, res) => {
 });
 app.get("/photo", (req, res) => {
   conn.query(
-    "SELECT * FROM Posts",
+    "SELECT * FROM Posts order by id DESC",
     function (error, results, fields) {
       res.json(results);
-      console.log(results);
-      console.log(error);
+    }
+  );
+});
+app.get("/photo/:user", (req, res) => {
+  const user = req.params.user;
+  conn.query(
+    `SELECT * FROM Posts where username = "${user}" order by id DESC`,
+    function (error, results, fields) {
+      res.json(results);
     }
   );
 });
@@ -163,7 +175,6 @@ app.post("/upload", (req, res) => {
         res.send(uploadUrl);
       }
     } catch (e) {
-      console.log(e);
       return res.status(500);
     }
   })();
@@ -181,9 +192,16 @@ app.post("/publicate", (req, res) => {
     conn.query(
       `INSERT INTO Posts (id, username, restaurant_name, img_uri, rate, description, likes, comms, saves) VALUES (0,'${data[0]}','${data[3]}','${data[4]}','${data[1]}','${data[2]}',0,0,0)`,
       function (error, results, fields) {
+        conn.query(`select * from Users where username = ${data[0]}`,
+          function(error,results,fields){
+            if(error){
+              res.status(400)
+            }else{
+              conn.query(`update Users set posts = ${results[0].posts + 1} where email = ${data[0]}`)
+            }
+          }
+        )
         res.json(results);
-        console.log(results);
-        console.log(error);
       }
     );
   } catch (e) {
@@ -193,16 +211,11 @@ app.post("/publicate", (req, res) => {
 app.post("/register", (req, res) => {
   try {
     var data = req.body;
-    console.log(data);
     if (data.isRestaurant) {
       conn.query(
         `INSERT INTO Restaurants VALUES (0,'${data.name}','${data.nickname}','${data.email}')`,
         function (error, results, fields) {
           res.json(results);
-          console.log("error");
-          console.log(error);
-          console.log("res");
-          console.log(results);
         }
       );
     } else {
@@ -210,10 +223,6 @@ app.post("/register", (req, res) => {
         `INSERT INTO Users VALUES (0,'${data.name}','${data.nickname}','${data.email}')`,
         function (error, results, fields) {
           res.json(results);
-          console.log("error");
-          console.log(error);
-          console.log("res");
-          console.log(results);
         }
       );
     }
@@ -225,42 +234,26 @@ app.post("/register", (req, res) => {
 app.get("/getUserInfo/:email", (req, res) => {
   var email = req.params.email;
   conn.query(
-    `select name, nickname from Restaurants where email = '${email}'`,
+    `select * from Restaurants where email = '${email}'`,
     function (error, results, fields) {
       var response = [];
-      if(results){
+      if(results[0]){
         console.log(results)
         response[0] = results[0];
-        conn.query(
-          `select * from Posts where username = '${email}'`,
-          function (error, results, fields) {
-            if(results){
-                response[1] = results;
-                res.json(response);
-            }
-          }      
-        );
+        
         console.log(response)
         res.json(response);
       }else console.log(error)
     }
   );
   conn.query(
-    `select name, nickname from Users where email = '${email}'`,
+    `select * from Users where email = '${email}'`,
     function (error, results, fields) {
       var response = [];
-      if(results){
+      if(results[0]){
         response[0] = results[0];
-        conn.query(
-          `select * from Posts where username = '${email}'`,
-          function (error, results, fields) {
-            if(results){
-                response[1] = results;
-                res.json(response);
-            }
-          }
-        );
-
+        console.log(response)
+        res.json(response);
       }else{
         console.log(error)
       res.status(404);
@@ -281,8 +274,6 @@ app.post("/comm", (req, res) => {
       `INSERT INTO Comms VALUES (0,'${data[0]}','${data[1]}','${data[2]}')`,
       function (error, results, fields) {
         res.json(results);
-        console.log(results);
-        console.log(error);
       }
     );
   } catch (e) {
@@ -290,6 +281,29 @@ app.post("/comm", (req, res) => {
   }
 });
 
+app.get("/likes/:usId", (req,res)=>{
+  try{
+    const user = req.params.usId;
+    conn.query(`select postId from Likes where username = '${user}'`, function(error,results,fields){
+      console.log(results)
+      res.json(results)
+    })
+  }catch(e){
+    res.json(null)
+  }
+})
+
+app.get("/changeAbout/:user/:text", (req,res)=>{
+  try{
+    const user = req.params.user;
+    const text = req.params.text;
+    conn.query(`update Users set about = '${text}' where username = '${user}'`, function(error,results,fields){
+      res.status(500)
+    })
+  }catch(e){
+    res.status(400)
+  }
+})
 app.listen(4000, () => {
   console.log("Сервер запущен на порту: 4000");
 });
